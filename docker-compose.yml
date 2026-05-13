@@ -1,0 +1,53 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Docker Compose — Smart Home Multi-Agent System
+# ──────────────────────────────────────────────────────────────────────────────
+# Bring up the infrastructure with:
+#
+#   docker compose up -d
+#
+# This starts:
+#   - nats             The NATS message broker (port 4222)
+#   - lighting-agent   The Go Lighting Agent (NATS client)
+#
+# The Python orchestrator runs on the **host** machine and connects to
+# nats://localhost:4222 (the published port). The lighting-agent connects
+# to nats://nats:4222 (the Docker-internal service name).
+#
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── NATS Message Broker ─────────────────────────────────────────────────
+  nats:
+    image: nats:latest
+    container_name: smarthome-nats
+    ports:
+      - "4222:4222"          # Client connections (host → Docker)
+    networks:
+      - smarthome-net
+    restart: unless-stopped
+
+  # ── Lighting Agent (Go microservice) ────────────────────────────────────
+  lighting-agent:
+    build:
+      context: ./lighting-agent
+      dockerfile: Dockerfile
+    container_name: smarthome-lighting-agent
+    depends_on:
+      - nats
+    environment:
+      # Use the Docker service name "nats" — resolution is handled by the
+      # embedded DNS server of the "smarthome-net" bridge network.
+      NATS_URL: nats://nats:4222
+    networks:
+      - smarthome-net
+    restart: unless-stopped
+
+# ── Network ─────────────────────────────────────────────────────────────────
+networks:
+  smarthome-net:
+    name: smarthome-net
+    driver: bridge
+    # The bridge driver gives each container a virtual Ethernet interface and
+    # enables DNS-based service discovery (containers reach each other by
+    # service name).

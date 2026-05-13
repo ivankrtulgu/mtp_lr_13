@@ -1,0 +1,24 @@
+# ── Docker Build Context Exclusions ──────────────────────────────────────────
+# These files are not needed inside the Docker image and would only bloat the
+# build context.
+
+# Local build output
+lighting-agent
+lighting-agent.exe
+
+# Documentation (already available in the repo; not needed in the image)
+README.md
+
+# Git metadata
+.git/
+.gitignore
+
+# IDE / editor artifacts
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS metadata
+.DS_Store
+Thumbs.db
