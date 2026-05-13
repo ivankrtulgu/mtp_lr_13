@@ -59,6 +59,9 @@ class AgentOrchestrator:
         # Subscription handle so we can unsubscribe on shutdown.
         self._sub: Any = None
 
+        # Task counter — incremented on every send_task() call.
+        self._task_count: int = 0
+
     async def connect(self) -> None:
         """Establish a NATS connection and subscribe to result replies.
 
@@ -149,6 +152,9 @@ class AgentOrchestrator:
                 "Orchestrator is not connected to NATS. Call `await connect()` first."
             )
 
+        # Track total dispatched tasks.
+        self._task_count += 1
+
         # 1. Build the task model.
         task = TaskModel(
             id=uuid4().hex,
@@ -183,6 +189,8 @@ class AgentOrchestrator:
             logger.warning("Task %s timed out after %.1f s", task.id, timeout)
             self._pending.pop(task.id, None)
             raise
+        finally:
+            logger.info("Total tasks dispatched: %d", self._task_count)
 
         return result_dict
 

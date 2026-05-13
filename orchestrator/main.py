@@ -29,11 +29,37 @@ load_dotenv()
 
 # ── Logging configuration ────────────────────────────────────────────────────
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%dT%H:%M:%S%z",
-)
+def _setup_logging() -> None:
+    """Configure dual logging: console (StreamHandler) and file (FileHandler).
+
+    Uses the standard ``logging`` module to write to both ``sys.stdout`` and
+    ``orchestrator.log`` (append mode) with a consistent structured format.
+    """
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+
+    # Remove any pre-existing handlers so we start from a clean slate.
+    root_logger.handlers.clear()
+
+    formatter = logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S%z",
+    )
+
+    # Console handler — writes to stdout (visible in the terminal).
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+
+    # File handler — appends to orchestrator.log.
+    file_handler = logging.FileHandler("orchestrator.log", mode="a", encoding="utf-8")
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(formatter)
+    root_logger.addHandler(file_handler)
+
+
+_setup_logging()
 logger = logging.getLogger("orchestrator.main")
 
 
