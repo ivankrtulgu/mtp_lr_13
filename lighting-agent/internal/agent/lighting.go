@@ -56,7 +56,7 @@ func (a *Agent) logError(format string, args ...any) {
 // subscription fails.
 func (a *Agent) Start() error {
 	var err error
-	a.sub, err = a.conn.Subscribe("tasks.lighting", a.handleMessage)
+	a.sub, err = a.conn.QueueSubscribe("tasks.lighting", "lighting_group", a.handleMessage)
 	if err != nil {
 		return fmt.Errorf("subscribe to tasks.lighting: %w", err)
 	}
@@ -66,7 +66,7 @@ func (a *Agent) Start() error {
 		return fmt.Errorf("flush subscription: %w", err)
 	}
 
-	a.logInfo("Agent started — subscribed to 'tasks.lighting'")
+	a.logInfo("Agent started — subscribed to 'tasks.lighting' as part of 'lighting_group' queue")
 	return nil
 }
 

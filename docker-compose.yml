@@ -32,7 +32,6 @@ services:
     build:
       context: ./lighting-agent
       dockerfile: Dockerfile
-    container_name: smarthome-lighting-agent
     depends_on:
       - nats
     environment:
@@ -42,6 +41,8 @@ services:
     networks:
       - smarthome-net
     restart: unless-stopped
+    deploy:
+      replicas: 3
 
 # ── Network ─────────────────────────────────────────────────────────────────
 networks:
