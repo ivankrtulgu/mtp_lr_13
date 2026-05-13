@@ -147,52 +147,60 @@ class AgentOrchestrator:
                 *timeout* seconds.
             json.JSONDecodeError: If the agent's reply is malformed JSON.
         """
-        if self.nc is None:
-            raise ConnectionError(
-                "Orchestrator is not connected to NATS. Call `await connect()` first."
-            )
-
         # Track total dispatched tasks.
         self._task_count += 1
 
-        # 1. Build the task model.
-        task = TaskModel(
-            id=uuid4().hex,
-            type=task_type,
-            payload=payload,
-            timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        )
-
-        # 2. Create a Future that will be resolved when the result arrives.
-        future = asyncio.get_event_loop().create_future()
-
-        # 3. Store it in the pending map BEFORE publishing to avoid a race
-        #    condition where the agent replies before we start listening.
-        self._pending[task.id] = future
-
-        # 4. Serialise and publish.
-        raw = task.model_dump_json().encode("utf-8")
-        await self.nc.publish(subject, raw)
-
-        logger.info(
-            "Task %s (%s) published to '%s' | payload_keys=%s",
-            task.id,
-            task.type,
-            subject,
-            list(payload.keys()),
-        )
-
-        # 5. Await the correlated result (or timeout).
         try:
-            result_dict: dict[str, Any] = await asyncio_wait_for(future, timeout=timeout)
-        except TimeoutError:
-            logger.warning("Task %s timed out after %.1f s", task.id, timeout)
-            self._pending.pop(task.id, None)
-            raise
+            for attempt in range(1, 4):
+                task_id = uuid4().hex
+                try:
+                    if self.nc is None:
+                        raise ConnectionError(
+                            "Orchestrator is not connected to NATS. Call `await connect()` first."
+                        )
+
+                    # 1. Build the task model.
+                    task = TaskModel(
+                        id=task_id,
+                        type=task_type,
+                        payload=payload,
+                        timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                    )
+
+                    # 2. Create a Future that will be resolved when the result arrives.
+                    future = asyncio.get_event_loop().create_future()
+
+                    # 3. Store it in the pending map BEFORE publishing to avoid a race
+                    #    condition where the agent replies before we start listening.
+                    self._pending[task_id] = future
+
+                    # 4. Serialise and publish.
+                    raw = task.model_dump_json().encode("utf-8")
+                    await self.nc.publish(subject, raw)
+
+                    logger.info(
+                        "Task %s (%s) published to '%s' | payload_keys=%s",
+                        task.id,
+                        task.type,
+                        subject,
+                        list(payload.keys()),
+                    )
+
+                    # 5. Await the correlated result (or timeout).
+                    return await asyncio_wait_for(future, timeout=timeout)
+
+                except (TimeoutError, ConnectionError) as e:
+                    self._pending.pop(task_id, None)
+                    if attempt < 3:
+                        logger.warning("Retry %d/3 for task %s due to %s", attempt, task_id, e)
+                        await asyncio.sleep(1)
+                    else:
+                        raise e
+                except Exception:
+                    self._pending.pop(task_id, None)
+                    raise
         finally:
             logger.info("Total tasks dispatched: %d", self._task_count)
-
-        return result_dict
 
     # ── Internal result handler ─────────────────────────────────────────
 
